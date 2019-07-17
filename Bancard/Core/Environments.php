@@ -1,12 +1,6 @@
 <?php
 
-namespace Bancard\Bancard\Core;
-
-/**
- *
- * Define working environments.
- *
- **/
+namespace Bancard\Core;
 
 class Environments
 {

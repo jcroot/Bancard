@@ -1,16 +1,9 @@
 <?php
 
-namespace Bancard\Bancard\Core;
+namespace Bancard\Core;
 
-use Bancard\Bancard\Core\Config;
-use Bancard\Bancard\Core\HTTP;
-use Closure;
-
-/**
- *
- * Response class that handles all confirmation responses for sent operations.
- *
- **/
+use Bancard\Core\Config;
+use Bancard\Core\HTTP;
 
 class Response
 {
@@ -26,8 +19,9 @@ class Response
 
     public static function read()
     {
-        $self = new self;
+        $self = new self();
         $self->response = HTTP::read();
+
         return $self;
     }
 
@@ -57,3 +51,5 @@ class Response
         return json_decode($this->response);
     }
 }
+
+

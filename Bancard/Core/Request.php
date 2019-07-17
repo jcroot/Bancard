@@ -1,25 +1,19 @@
 <?php
 
-namespace Bancard\Bancard\Core;
-
-use Bancard\Bancard\Core\Config;
-
-use Closure;
-
-/**
- *
- * Request class that handles all VPOS operations.
- *
- **/
+namespace Bancard\Core;
 
 class Request
 {
     private $token;
+
     private $shop_process_id;
+
     private $response_data;
 
     protected $environment;
+
     protected $path;
+
     protected $redirect_path;
 
     public $url;
@@ -27,10 +21,14 @@ class Request
     public $redirect_to;
 
     public $public_key;
-    public $operation = array();
-    public $data = array();
+
+    public $operation = [];
+
+    public $data = [];
 
     public $response;
+
+    public $process_id;
 
     /**
      *
@@ -46,7 +44,6 @@ class Request
     {
         $this->token = Token::create(
             $type,
-            $this->data['shop_process_id'],
             $this->data
         );
     }
@@ -65,8 +62,10 @@ class Request
             $this->public_key = $this->data['public_key'];
         }
         if (empty($this->public_key)) {
-            $this->public_key = Config::get('public_key');
+            $public_key = (APPLICATION_ENV == 'production') ? 'production_public_key' : 'staging_public_key';
+            $this->public_key = Config::get($public_key);
         }
+
         return $this->public_key;
     }
 
@@ -77,7 +76,6 @@ class Request
      * @return void
      *
      **/
-
 
     public function addData($key, $value)
     {
@@ -92,18 +90,25 @@ class Request
      *
      **/
 
-    protected function makeOperationObject()
+    protected function makeOperationObject($removeField = "")
     {
         $this->operation['public_key'] = $this->getPublicKey();
-        $this->operation['operation'] = array();
+        $this->operation['operation'] = [];
         $this->operation['operation']['token'] = $this->token->get();
-        $this->operation['operation']['shop_process_id'] = $this->shop_process_id;
-        foreach ($this->data as $key => $value) {
-            if ($key == "public_key" or $key == "private_key") {
-                continue;
+        if (isset($this->shop_process_id) && !is_null($this->shop_process_id)) {
+            if ($this->shop_process_id > 0) {
+                $this->operation['operation']['shop_process_id'] = $this->shop_process_id;
             }
-            $this->operation['operation'][$key] = $value;
         }
+        if (count($this->data) > 0) {
+            foreach ($this->data as $key => $value) {
+                if ($key == "public_key" or $key == "private_key" or $key == $removeField) {
+                    continue;
+                }
+                $this->operation['operation'][$key] = $value;
+            }
+        }
+        //\Zend_Registry::get('logger')->log(json_encode($this->operation), \Zend_Log::ERR);
     }
 
     /**
@@ -116,10 +121,10 @@ class Request
      *
      **/
 
-    protected function post()
+    protected function post($method)
     {
         $this->url = $this->environment . $this->path;
-        $this->response_data = HTTP::post($this->url, $this->json());
+        $this->response_data = HTTP::post($this->url, $this->json(), $method);
 
         if (!$this->response_data) {
             throw new \RuntimeException("No response data was found.");
@@ -127,12 +132,13 @@ class Request
 
         $this->response = $this->response();
 
+        //\Zend_Registry::get('logger')->log($this->json(), \Zend_Log::ERR);
         if ($this->response->status == "error") {
             throw new \Exception("[" . $this->response->messages[0]->key . "] " . $this->response->messages[0]->dsc);
         }
 
-        if (!empty($this->response()->process_id)) {
-            $this->redirect_to = $this->environment . $this->redirect_path . "?process_id=" . $this->response()->process_id;
+        if (!empty($this->response->process_id)) {
+            $this->process_id = $this->response->process_id;
         }
 
         return true;
@@ -185,9 +191,11 @@ class Request
      *
      **/
 
-    public function send()
+    public function send($method = "post")
     {
-        $this->post();
+        $this->post($method);
+
         return $this;
     }
 }
+

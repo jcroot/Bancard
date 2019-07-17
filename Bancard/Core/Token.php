@@ -1,21 +1,24 @@
 <?php
 
-namespace Bancard\Bancard\Core;
-
-/**
- *
- * Token class for construction and handling tokens.
- *
- **/
+namespace Bancard\Core;
 
 class Token
 {
     private $type;
+
     private $private_key;
+
     private $shop_process_id;
+
     private $data;
+
     private $unhashed_string = "";
+
     private $hash;
+
+    private $user_id;
+
+    private $card_id;
 
     /**
      *
@@ -23,11 +26,15 @@ class Token
      *
      **/
 
-    private function __construct($type, $shop_process_id, $data)
+    private function __construct($type, $data)
     {
         $this->type = $type;
         $this->data = $data;
-        $this->shop_process_id = $shop_process_id;
+        foreach ($data as $key => $value){
+            if ($key == 'card_id' || $key == 'user_id' || $key == 'shop_process_id'){
+                $this->$key = $value;
+            }
+        }
         $this->getPrivateKey();
         $this->make();
         $this->hash();
@@ -45,8 +52,10 @@ class Token
             $this->private_key = $this->data['private_key'];
         }
         if (empty($this->private_key)) {
-        $this->private_key = Config::get('private_key');
+            $private_key = (APPLICATION_ENV == 'production') ? 'production_private_key' : 'staging_private_key';
+            $this->private_key = Config::get($private_key);
         }
+
         return $this->private_key;
     }
 
@@ -104,6 +113,82 @@ class Token
             $this->unhashed_string .= $this->data['amount'];
             $this->unhashed_string .= $this->data['currency'];
         }
+
+        if ($this->type == "multi_buy") {
+            $this->unhashed_string .= $this->private_key;
+            $this->unhashed_string .= $this->shop_process_id;
+            $this->unhashed_string .= $this->data['total_items'];
+            $this->unhashed_string .= $this->data['total_usd'];
+            $this->unhashed_string .= $this->data['total_pyg'];
+        }
+
+        if ($this->type == "multi_buy_confirm") {
+            $this->unhashed_string .= $this->private_key;
+            $this->unhashed_string .= $this->shop_process_id;
+            $this->unhashed_string .= "confirm";
+            $this->unhashed_string .= $this->data['total_items'];
+            $this->unhashed_string .= $this->data['amount_in_us'];
+            $this->unhashed_string .= $this->data['amount_in_gs'];
+        }
+
+        if ($this->type == "multi_buy_get_confirmation") {
+            $this->unhashed_string .= $this->private_key;
+            $this->unhashed_string .= $this->shop_process_id;
+            $this->unhashed_string .= "get_confirmation";
+            $this->unhashed_string .= $this->data['total_items'];
+            $this->unhashed_string .= $this->data['amount_in_us'];
+            $this->unhashed_string .= $this->data['amount_in_gs'];
+        }
+
+        if ($this->type == "multi_buy_get_confirmation") {
+            $this->unhashed_string .= $this->private_key;
+            $this->unhashed_string .= $this->shop_process_id;
+            $this->unhashed_string .= "rollback";
+            $this->unhashed_string .= "0";
+            $this->unhashed_string .= "0,00";
+            $this->unhashed_string .= "0,00";
+        }
+
+        if ($this->type == "user_validation") {
+            $this->unhashed_string .= $this->private_key;
+            $this->unhashed_string .= $this->shop_process_id;
+            $this->unhashed_string .= "user_validation";
+        }
+
+        if ($this->type == "user_validation_respond") {
+            $this->unhashed_string .= $this->private_key;
+            $this->unhashed_string .= $this->shop_process_id;
+            $this->unhashed_string .= "user_validation_respond";
+        }
+
+        if ($this->type == "cards_new"){
+            $this->unhashed_string .= $this->private_key;
+            $this->unhashed_string .= $this->card_id;
+            $this->unhashed_string .= $this->user_id;
+            $this->unhashed_string .= "request_new_card";
+        }
+
+        if ($this->type == "cards_list"){
+            $this->unhashed_string .= $this->private_key;
+            $this->unhashed_string .= $this->user_id;
+            $this->unhashed_string .= "request_user_cards";
+        }
+
+        if ($this->type == "charge"){
+            $this->unhashed_string .= $this->private_key;
+            $this->unhashed_string .= $this->shop_process_id;
+            $this->unhashed_string .= $this->type;
+            $this->unhashed_string .= $this->data['amount'];
+            $this->unhashed_string .= $this->data['currency'];
+            $this->unhashed_string .= $this->data['alias_token'];
+        }
+
+        if ($this->type == "remove_card"){
+            $this->unhashed_string .= $this->private_key;
+            $this->unhashed_string .= "delete_card";
+            $this->unhashed_string .= $this->user_id;
+            $this->unhashed_string .= $this->data['alias_token'];
+        }
     }
 
     /**
@@ -125,9 +210,10 @@ class Token
      *
      **/
 
-    public static function create($type, $shop_process_id, $data = array())
+    public static function create($type, $data = [])
     {
-        $self = new self($type, $shop_process_id, $data);
+        $self = new self($type, $data);
+
         return $self;
     }
 
@@ -144,3 +230,5 @@ class Token
         return $this->hash;
     }
 }
+
+
